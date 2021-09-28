@@ -65,7 +65,8 @@ init()->
     mnesia:stop(),
     mnesia:delete_schema([node()]),
     mnesia:start(),
-    Nodes=[node()|nodes()],
+    %Nodes=[node()|nodes()],
+    Nodes=nodes(),
     ok=case [Node||Node<-Nodes,rpc:call(Node,db_lock,check_init,[],2000)=:=ok] of
 	   []-> % First Node
 	       ok=db_lock:create_table(),
