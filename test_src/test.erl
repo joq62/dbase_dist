@@ -105,7 +105,8 @@ pass1()->
      {'c@joq62-X550CA',{error,[mnesia_not_started]}}]=[{Node,rpc:call(Node,db_lock,check_init,[],2000)}||Node<-Nodes],
 
     % Start first node
-    ok=rpc:call(N1,application,start,[dbase_dist],3000),
+ %   ok=rpc:call(N1,application,start,[dbase_dist],3000),
+    ok=rpc:call(N1,dbase_dist,boot,[],3000),
     [{'a@joq62-X550CA',ok},
      {'b@joq62-X550CA',{error,[mnesia_not_started]}},
      {'c@joq62-X550CA',{error,[mnesia_not_started]}}]=[{Node,rpc:call(Node,db_lock,check_init,[],2000)}||Node<-Nodes],

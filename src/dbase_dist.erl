@@ -68,8 +68,10 @@ init()->
     mnesia:delete_schema([node()]),
     mnesia:start(),
     %Nodes=[node()|nodes()],
+  %  Nodes=['dbase_dist@c0','dbase_dist@c2'],
     Nodes=nodes(),
-    ok=case [Node||Node<-Nodes,rpc:call(Node,db_lock,check_init,[],2000)=:=ok] of
+    ok=case [Node||Node<-Nodes,rpc:call(Node,db_lock,check_init,[],2000)=:=ok,
+	    node()/=Node] of
 	   []-> % First Node
 	       ok=db_lock:create_table(),
 	       {atomic,ok}=db_lock:create(controller_lock,1,node()),
