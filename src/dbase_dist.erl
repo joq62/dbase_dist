@@ -67,19 +67,24 @@ init()->
     mnesia:stop(),
     mnesia:delete_schema([node()]),
     mnesia:start(),
-    %Nodes=[node()|nodes()],
-  %  Nodes=['dbase_dist@c0','dbase_dist@c2'],
-    Nodes=nodes(),
-    ok=case [Node||Node<-Nodes,rpc:call(Node,db_lock,check_init,[],2000)=:=ok,
-	    node()/=Node] of
+    ConnectNodes=['dbase_dist@c0','dbase_dist@c2'],
+    ConnectedNodes=[ConnectNode||ConnectNode<-ConnectNodes,
+		pong=:=net_adm:ping(ConnectNode)],
+%    Nodes=nodes(),
+    DbaseNodes=[Node||Node<-ConnectedNodes,
+		      rpc:call(Node,db_lock,check_init,[],2000)=:=ok,
+		      Node/=node()] ,
+    io:format("nodes ~p~n",[nodes()]),
+    io:format("DbaseNodes ~p~n",[DbaseNodes]),
+    ok=case DbaseNodes of
 	   []-> % First Node
 	       ok=db_lock:create_table(),
 	       {atomic,ok}=db_lock:create(controller_lock,1,node()),
 	       true=db_lock:is_open(controller_lock,node(),2),
 	       true=db_lock:is_leader(controller_lock,node()),
 	       ok;
-	   ControllerNodes->
-	       add_this_node(ControllerNodes,false)
+	   DbaseNodes->
+	       add_this_node(DbaseNodes,false)
        end.
     
 	    
@@ -90,12 +95,12 @@ add_this_node(_,ok) ->
     ok;
 add_this_node([Node1|T],_Acc)->
     NewAcc=case rpc:call(Node1,db_lock,add_node,[node(),ram_copies],5000) of
-	       {badrpc,_}->
-		   false;
+	       {badrpc,Reason}->
+		   {error,[badrpc,Reason,?FUNCTION_NAME,?MODULE,?LINE]};
 	       ok->
 		   ok;
-	       _Error->
-		   false
+	       Error->
+		   {error,[Error,?FUNCTION_NAME,?MODULE,?LINE]}
 	   end,
     
 add_this_node(T,NewAcc).	    

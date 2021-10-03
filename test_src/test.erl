@@ -31,6 +31,10 @@ start()->
     ok=setup(),
     io:format("~p~n",[{"Stop setup",?MODULE,?FUNCTION_NAME,?LINE}]),
 
+    io:format("~p~n",[{"Start t1()",?MODULE,?FUNCTION_NAME,?LINE}]),
+    ok=t1(),
+    io:format("~p~n",[{"Stop t1()",?MODULE,?FUNCTION_NAME,?LINE}]),
+
     io:format("~p~n",[{"Start pass1()",?MODULE,?FUNCTION_NAME,?LINE}]),
     ok=pass1(),
     io:format("~p~n",[{"Stop pass1()",?MODULE,?FUNCTION_NAME,?LINE}]),
@@ -91,6 +95,16 @@ start()->
     ok.
 
 
+
+%% --------------------------------------------------------------------
+%% Function:start/0 
+%% Description: Initiate the eunit tests, set upp needed processes etc
+%% Returns: non
+%% --------------------------------------------------------------------
+t1()->
+    ok=dbase_dist:boot(),
+    ok.
+
 %% --------------------------------------------------------------------
 %% Function:start/0 
 %% Description: Initiate the eunit tests, set upp needed processes etc
@@ -114,7 +128,8 @@ pass1()->
     true=rpc:call('a@joq62-X550CA',db_lock,is_leader,[controller_lock,'a@joq62-X550CA'],2000),
     [{controller_lock,_,'a@joq62-X550CA'}]=rpc:call(N1,db_lock,read_all_info,[],5000),
  % Start second node
-    ok=rpc:call(N2,application,start,[dbase_dist],3000),
+%    ok=rpc:call(N2,application,start,[dbase_dist],3000),
+    ok=rpc:call(N2,dbase_dist,boot,[],3000),
     [{'a@joq62-X550CA',ok},
      {'b@joq62-X550CA',ok},
      {'c@joq62-X550CA',{error,[mnesia_not_started]}}]=[{Node,rpc:call(Node,db_lock,check_init,[],2000)}||Node<-Nodes],
@@ -122,7 +137,8 @@ pass1()->
     true=rpc:call(N2,db_lock,is_leader,[controller_lock,'a@joq62-X550CA'],2000),
     [{controller_lock,_,'a@joq62-X550CA'}]=rpc:call(N2,db_lock,read_all_info,[],5000),
  % Start third node
-    ok=rpc:call(N3,application,start,[dbase_dist],3000),
+  %  ok=rpc:call(N3,application,start,[dbase_dist],3000),
+    ok=rpc:call(N3,dbase_dist,boot,[],3000),
     [{'a@joq62-X550CA',ok},
      {'b@joq62-X550CA',ok},
      {'c@joq62-X550CA',ok}]=[{Node,rpc:call(Node,db_lock,check_init,[],2000)}||Node<-Nodes],

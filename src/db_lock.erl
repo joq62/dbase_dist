@@ -20,6 +20,8 @@ check_init()->
 		     {error,[mnesia_not_started]};
 		 {aborted,{no_exists,{lock,disc_copies}}}->
 		     {error,[not_initiated,?MODULE]};
+		 false->
+		     {error,false};
 		 _->
 		     ok
 	     end,
