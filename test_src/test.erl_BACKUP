@@ -30,10 +30,18 @@ start()->
     io:format("~p~n",[{"Start setup",?MODULE,?FUNCTION_NAME,?LINE}]),
     ok=setup(),
     io:format("~p~n",[{"Stop setup",?MODULE,?FUNCTION_NAME,?LINE}]),
+%
+    io:format("~p~n",[{"Start t0()",?MODULE,?FUNCTION_NAME,?LINE}]),
+    ok=t0(),
+    io:format("~p~n",[{"Stop t0()",?MODULE,?FUNCTION_NAME,?LINE}]),
 
-    io:format("~p~n",[{"Start t1()",?MODULE,?FUNCTION_NAME,?LINE}]),
-    ok=t1(),
-    io:format("~p~n",[{"Stop t1()",?MODULE,?FUNCTION_NAME,?LINE}]),
+ %   io:format("~p~n",[{"Start t1()",?MODULE,?FUNCTION_NAME,?LINE}]),
+ %   ok=t1(),
+ %   io:format("~p~n",[{"Stop t1()",?MODULE,?FUNCTION_NAME,?LINE}]),
+
+  %  io:format("~p~n",[{"Start pass0()",?MODULE,?FUNCTION_NAME,?LINE}]),
+ %   ok=pass0(),
+ %   io:format("~p~n",[{"Stop pass0()",?MODULE,?FUNCTION_NAME,?LINE}]),
 
 %    io:format("~p~n",[{"Start pass1()",?MODULE,?FUNCTION_NAME,?LINE}]),
 %    ok=pass1(),
@@ -96,13 +104,80 @@ start()->
 
 
 
+
+%% --------------------------------------------------------------------
+%% Function:start/0 
+%% Description: Initiate the eunit tests, set upp needed processes etc
+%% Returns: non
+%% --------------------------------------------------------------------
+t0()->
+    Nodes=nodes(),
+    [N1,N2,N3]=Nodes,
+    ok=io:format("start dbase on N1 = ~p~n",[{?FUNCTION_NAME,?LINE,rpc:call(N1,application,start,[dbase_dist],7000)}]),
+    ok=io:format("start dbase on N2 = ~p~n",[{?FUNCTION_NAME,?LINE,rpc:call(N2,application,start,[dbase_dist],7000)}]),
+    ok=io:format("start dbase on N3 = ~p~n",[{?FUNCTION_NAME,?LINE,rpc:call(N3,application,start,[dbase_dist],7000)}]),
+    ok=io:format("mnesia = ~p~n",[{?FUNCTION_NAME,?LINE,rpc:call(N1,mnesia,system_info,[],1000)}]), 
+
+ % Kill slave
+    slave:stop(N3),
+    ok=io:format("mnesia = ~p~n",[rpc:call(N1,mnesia,system_info,[],1000)]),
+
+    % REstart node
+    HostId=net_adm:localhost(),
+    Cookie=atom_to_list(erlang:get_cookie()),
+    Args="-pa ebin -setcookie "++Cookie,
+    [{ok,N3}]=[slave:start(HostId,NodeName,Args)||NodeName<-["c"]],
+    ok=rpc:call(N3,application,start,[dbase_dist],7000),
+    ok=io:format("mnesia = ~p~n",[rpc:call(N1,mnesia,system_info,[],1000)]),
+
+    
+  %  ok=io:format("read = ~p~n",[{?FUNCTION_NAME,?LINE,rpc:call(N2,db_lock,read_all_info,[],1000)}]),
+ %  ok=io:format("mnesia = ~p~n",[{?FUNCTION_NAME,?LINE,rpc:call(N1,mnesia,system_info,[],1000)}]),
+
+  
+   % timer:sleep(500), 
+ %  ok=io:format("read = ~p~n",[{?FUNCTION_NAME,?LINE,rpc:call(N2,db_lock,read_all_info,[],1000)}]),
+   
+    ok.
 %% --------------------------------------------------------------------
 %% Function:start/0 
 %% Description: Initiate the eunit tests, set upp needed processes etc
 %% Returns: non
 %% --------------------------------------------------------------------
 t1()->
-    ok=dbase_dist:boot(),
+    Nodes=nodes(),
+    [N1,N2,N3]=Nodes,
+    %Start 
+    ok=rpc:call(N1,application,start,[dbase_dist],7000),
+    timer:sleep(1000),
+    ok=io:format("Leader = ~p~n",[rpc:call(N1,bully,who_is_leader,[],1000)]),
+    ok=io:format("mnesia = ~p~n",[rpc:call(N1,mnesia,system_info,[],1000)]),
+    
+    ok=rpc:call(N2,application,start,[dbase_dist],7000),
+    ok=io:format("Leader = ~p~n",[rpc:call(N1,bully,who_is_leader,[],1000)]),
+    ok=io:format("mnesia = ~p~n",[rpc:call(N1,mnesia,system_info,[],1000)]),
+
+
+    ok=rpc:call(N3,application,start,[dbase_dist],7000),
+    ok=io:format("Leader = ~p~n",[rpc:call(N1,bully,who_is_leader,[],1000)]),
+    ok=io:format("mnesia = ~p~n",[rpc:call(N1,mnesia,system_info,[],1000)]),
+
+    % Kill slave
+    slave:stop(N3),
+    timer:sleep(1000),
+    io:format("Leader = ~p~n",[rpc:call(N1,bully,who_is_leader,[],1000)]),
+    ok=io:format("mnesia = ~p~n",[rpc:call(N1,mnesia,system_info,[],1000)]),
+
+    % REstart node
+    HostId=net_adm:localhost(),
+    Cookie=atom_to_list(erlang:get_cookie()),
+    Args="-pa ebin -setcookie "++Cookie,
+    [{ok,N3}]=[slave:start(HostId,NodeName,Args)||NodeName<-["c"]],
+    ok=rpc:call(N3,application,start,[dbase_dist],7000),
+    timer:sleep(1000),
+    io:format("Leader = ~p~n",[rpc:call(N1,bully,who_is_leader,[],1000)]),
+    ok=io:format("mnesia = ~p~n",[rpc:call(N1,mnesia,system_info,[],1000)]),
+    
     ok.
 
 %% --------------------------------------------------------------------
@@ -110,65 +185,95 @@ t1()->
 %% Description: Initiate the eunit tests, set upp needed processes etc
 %% Returns: non
 %% --------------------------------------------------------------------
-pass1()->
+pass0()->
     Nodes=nodes(),
     [N1,N2,N3]=Nodes,
-   % io:format("Nodes ~p~n",[Nodes]),
-    [{'a@joq62-X550CA',{error,[mnesia_not_started]}},
-     {'b@joq62-X550CA',{error,[mnesia_not_started]}},
-     {'c@joq62-X550CA',{error,[mnesia_not_started]}}]=[{Node,rpc:call(Node,db_lock,check_init,[],2000)}||Node<-Nodes],
+ %   [rpc:cast(N,application,start,[dbase_dist])||N<-Nodes],    
+ %   timer:sleep(7000),
+    ok=io:format("start dbase on N1 = ~p~n",[{?FUNCTION_NAME,?LINE,rpc:call(N1,application,start,[dbase_dist],7000)}]),
+    ok=io:format("create_table = ~p~n",[{?FUNCTION_NAME,?LINE,rpc:call(N1,db_lock,create_table,[],1000)}]),
+    ok=io:format("create = ~p~n",[{?FUNCTION_NAME,?LINE,rpc:call(N1,db_lock,create,[lck,0,n1],1000)}]),
+    ok=io:format("read = ~p~n",[{?FUNCTION_NAME,?LINE,rpc:call(N1,db_lock,read_all_info,[],1000)}]),
+    ok=io:format("mnesia = ~p~n",[{?FUNCTION_NAME,?LINE,rpc:call(N1,mnesia,system_info,[],1000)}]),
 
-    % Start first node
- %   ok=rpc:call(N1,application,start,[dbase_dist],3000),
-    ok=rpc:call(N1,dbase_dist,boot,[],3000),
-    [{'a@joq62-X550CA',ok},
-     {'b@joq62-X550CA',{error,[mnesia_not_started]}},
-     {'c@joq62-X550CA',{error,[mnesia_not_started]}}]=[{Node,rpc:call(Node,db_lock,check_init,[],2000)}||Node<-Nodes],
-   
-    true=rpc:call('a@joq62-X550CA',db_lock,is_leader,[controller_lock,'a@joq62-X550CA'],2000),
-    [{controller_lock,_,'a@joq62-X550CA'}]=rpc:call(N1,db_lock,read_all_info,[],5000),
- % Start second node
-%    ok=rpc:call(N2,application,start,[dbase_dist],3000),
-    ok=rpc:call(N2,dbase_dist,boot,[],3000),
-    [{'a@joq62-X550CA',ok},
-     {'b@joq62-X550CA',ok},
-     {'c@joq62-X550CA',{error,[mnesia_not_started]}}]=[{Node,rpc:call(Node,db_lock,check_init,[],2000)}||Node<-Nodes],
-   
-    true=rpc:call(N2,db_lock,is_leader,[controller_lock,'a@joq62-X550CA'],2000),
-    [{controller_lock,_,'a@joq62-X550CA'}]=rpc:call(N2,db_lock,read_all_info,[],5000),
- % Start third node
-  %  ok=rpc:call(N3,application,start,[dbase_dist],3000),
-    ok=rpc:call(N3,dbase_dist,boot,[],3000),
-    [{'a@joq62-X550CA',ok},
-     {'b@joq62-X550CA',ok},
-     {'c@joq62-X550CA',ok}]=[{Node,rpc:call(Node,db_lock,check_init,[],2000)}||Node<-Nodes],
-   
-    true=rpc:call(N3,db_lock,is_leader,[controller_lock,'a@joq62-X550CA'],2000),
-    [{controller_lock,_,'a@joq62-X550CA'}]=rpc:call(N3,db_lock,read_all_info,[],5000),
-    % kill N1
+    ok=io:format("start dbase on N2 = ~p~n",[{?FUNCTION_NAME,?LINE,rpc:call(N2,application,start,[dbase_dist],7000)}]),
+    ok=io:format("create_table = ~p~n",[{?FUNCTION_NAME,?LINE,rpc:call(N2,db_lock,add_node,[N2,ram_copies],1000)}]),
+    timer:sleep(1),
+    ok=io:format("read = ~p~n",[{?FUNCTION_NAME,?LINE,rpc:call(N2,db_lock,read_all_info,[],1000)}]),
+    ok=io:format("mnesia = ~p~n",[{?FUNCTION_NAME,?LINE,rpc:call(N1,mnesia,system_info,[],1000)}]),
 
-    slave:stop(N1),
-    timer:sleep(300),
-    [{'b@joq62-X550CA',ok},
-     {'c@joq62-X550CA',ok}]=[{Node,rpc:call(Node,db_lock,check_init,[],2000)}||Node<-nodes()],
- %   timer:sleep(3000),
-    [{controller_lock,_,'a@joq62-X550CA'}]=rpc:call(N3,db_lock,read_all_info,[],5000),
-    [{controller_lock,_,'a@joq62-X550CA'}]=rpc:call(N2,db_lock,read_all_info,[],5000),
-    
-    %start N1 again
+    ok=io:format("start dbase on N3 = ~p~n",[{?FUNCTION_NAME,?LINE,rpc:call(N3,application,start,[dbase_dist],7000)}]),
+    ok=io:format("create_table = ~p~n",[{?FUNCTION_NAME,?LINE,rpc:call(N3,db_lock,add_node,[N3,ram_copies],1000)}]),
+    timer:sleep(1),
+    ok=io:format("read = ~p~n",[{?FUNCTION_NAME,?LINE,rpc:call(N3,db_lock,read_all_info,[],1000)}]),
+    ok=io:format("mnesia = ~p~n",[{?FUNCTION_NAME,?LINE,rpc:call(N1,mnesia,system_info,[],1000)}]),
+  %  ok=io:format("create = ~p~n",[{?FUNCTION_NAME,?LINE,rpc:call(N2,db_lock,create_table,[],1000)}]),    
+  %  ok=io:format("add_table = ~p~n",[{?FUNCTION_NAME,?LINE,rpc:call(N2,db_lock,add_table,[N2,ram_disc],1000)}]),
+%    timer:sleep(1000),
+%    create_add_table([N2],ram_copies,db_lock),
+%    ok=io:format("mnesia = ~p~n",[{?FUNCTION_NAME,?LINE,rpc:call(N1,mnesia,system_info,[],1000)}]),
+
+ %   create_add_table([N3],ram_copies,db_lock),
+ %   ok=io:format("mnesia = ~p~n",[{?FUNCTION_NAME,?LINE,rpc:call(N2,mnesia,system_info,[],1000)}]),
+
+    slave:stop(N2),
+    timer:sleep(1000),
+    io:format("Leader = ~p~n",[rpc:call(N1,bully,who_is_leader,[],1000)]),
+    ok=io:format("mnesia = ~p~n",[{?FUNCTION_NAME,?LINE,rpc:call(N1,mnesia,system_info,[],1000)}]),
+
+    % REstart node
     HostId=net_adm:localhost(),
     Cookie=atom_to_list(erlang:get_cookie()),
     Args="-pa ebin -setcookie "++Cookie,
-    {ok,N1}=slave:start(HostId,"a",Args),
-    ok=rpc:call(N1,application,start,[dbase_dist],5000),
+    [{ok,N2}]=[slave:start(HostId,NodeName,Args)||NodeName<-["b"]],
+
+    ok=io:format("restart start dbase on N2 = ~p~n",[{?FUNCTION_NAME,?LINE,rpc:call(N2,application,start,[dbase_dist],7000)}]),
+     ok=io:format("create_table = ~p~n",[{?FUNCTION_NAME,?LINE,rpc:call(N1,db_lock,add_node,[N2,ram_copies],1000)}]),
+    timer:sleep(1000),
+    ok=io:format("read = ~p~n",[{?FUNCTION_NAME,?LINE,rpc:call(N2,db_lock,read_all_info,[],1000)}]),
+    ok=io:format("mnesia = ~p~n",[{?FUNCTION_NAME,?LINE,rpc:call(N1,mnesia,system_info,[],1000)}]),
+
+    ok.
+%% --------------------------------------------------------------------
+%% Function:start/0 
+%% Description: Initiate the eunit tests, set upp needed processes etc
+%% Returns: non
+%% --------------------------------------------------------------------
+pass1()->
+ 
+    Nodes=nodes(),
+    [N1,N2,N3]=Nodes,
+    [rpc:cast(N,application,start,[dbase_dist])||N<-Nodes],    
+    timer:sleep(7000),    
+    ok=io:format("tables = ~p~n",[{?FUNCTION_NAME,?LINE,rpc:call(N1,mnesia,system_info,[tables],1000)}]),
+    ok=io:format("running = ~p~n",[{?FUNCTION_NAME,?LINE,rpc:call(N1,mnesia,system_info,[running_db_nodes],1000)}]),
+    gl=io:format("all = ~p~n",[{?FUNCTION_NAME,?LINE,rpc:call(N1,mnesia,system_info,[db_nodes],1000)}]),
+
+    create_add_table(Nodes,ram_copies,db_lock),
+    ok=io:format("mnesia = ~p~n",[{?FUNCTION_NAME,?LINE,rpc:call(N1,mnesia,system_info,[],1000)}]),
     
-%    timer:sleep(2000),
-    [{controller_lock,_,'a@joq62-X550CA'}]=rpc:call(N1,db_lock,read_all_info,[],5000),
-    [{controller_lock,_,'a@joq62-X550CA'}]=rpc:call(N2,db_lock,read_all_info,[],5000),
-    [{controller_lock,_,'a@joq62-X550CA'}]=rpc:call(N3,db_lock,read_all_info,[],5000),
+    slave:stop(N3),
+    timer:sleep(1000),
+    io:format("Leader = ~p~n",[rpc:call(N1,bully,who_is_leader,[],1000)]),
+    ok=io:format("mnesia = ~p~n",[{?FUNCTION_NAME,?LINE,rpc:call(N1,mnesia,system_info,[],1000)}]),
+
+    % REstart node
+    HostId=net_adm:localhost(),
+    Cookie=atom_to_list(erlang:get_cookie()),
+    Args="-pa ebin -setcookie "++Cookie,
+    [{ok,N3}]=[slave:start(HostId,NodeName,Args)||NodeName<-["c"]],
+    ok=rpc:call(N3,application,start,[dbase_dist],7000),
+    timer:sleep(1000),
+    io:format("Leader = ~p~n",[rpc:call(N1,bully,who_is_leader,[],1000)]),
+    ok=io:format("mnesia = ~p~n",[{?FUNCTION_NAME,?LINE,rpc:call(N1,mnesia,system_info,[],1000)}]),
     
     ok.
-
+create_add_table([],_StorageType,_M)->
+    ok;
+create_add_table([Node|T],StorageType,M)->
+    io:format("create table = ~p~n",[rpc:call(Node,M,create_table,[],1000)]),
+    io:format("add table = ~p~n",[rpc:call(Node,M,add_table,[StorageType],1000)]),
+    create_add_table(T,StorageType,M).
 
 
 %% --------------------------------------------------------------------

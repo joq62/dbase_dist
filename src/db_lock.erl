@@ -41,13 +41,26 @@ create(LockId,Time,Leader) ->
 		mnesia:write(Record) end,
     mnesia:transaction(F).
 
-add_node(Node,StorageType)->
-    Result=case mnesia:change_config(extra_db_nodes, [Node]) of
+add_table(Node,StorageType)->
+    mnesia:add_table_copy(?TABLE, Node, StorageType),
+    Tables=mnesia:system_info(tables),
+    mnesia:wait_for_tables(Tables,20*1000).
+
+add_table(StorageType)->
+    mnesia:add_table_copy(?TABLE, node(), StorageType),
+    Tables=mnesia:system_info(tables),
+    mnesia:wait_for_tables(Tables,20*1000).
+
+add_node(Dest,Source,StorageType)->
+    io:format("Node~p~n",[{Dest,Source,?FUNCTION_NAME,?MODULE,?LINE}]),
+    Result=case mnesia:change_config(extra_db_nodes, [Dest]) of
 	       {ok,[Node]}->
-		   mnesia:add_table_copy(schema, node(),StorageType),
-		   mnesia:add_table_copy(?TABLE, node(), StorageType),
+		   mnesia:add_table_copy(schema,Source,StorageType),
+		   mnesia:add_table_copy(?TABLE, Source, StorageType),
 		   Tables=mnesia:system_info(tables),
-		   mnesia:wait_for_tables(Tables,20*1000);
+		   io:format("Tables~p~n",[{Tables,Node,node(),?FUNCTION_NAME,?MODULE,?LINE}]),
+		   mnesia:wait_for_tables(Tables,20*1000),
+		   ok;
 	       Reason ->
 		   Reason
 	   end,

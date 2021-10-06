@@ -34,16 +34,7 @@ start()-> gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 stop()-> gen_server:call(?MODULE, {stop},infinity).
 
 
-add_target_resource_type(Type)->
-    gen_server:cast(?MODULE, {add_target_resource_type,Type}). 
-add_local_resource(Type,Instance)->
-    gen_server:cast(?MODULE, {add_local_resource,Type,Instance}). 
-	 
-fetch_resources(Type)->
-    gen_server:call(?MODULE, {fetch_resources,Type},infinity).
 
-trade_resources()->
-    gen_server:cast(?MODULE, {trade_resources}). 
 
 %% ====================================================================
 %% Server functions
@@ -58,9 +49,15 @@ trade_resources()->
 %%          {stop, Reason}
 %% --------------------------------------------------------------------
 init([]) ->
-   
-    
-    
+    DbaseNodes=connect_nodes(),
+    start_dbase(DbaseNodes),
+  %  IsLeader=start_bully_election(),
+  %  case IsLeader of
+%	false->
+	 %   start_as_slave(DbaseNodes);
+%	true->
+%	    start_as_leader(DbaseNodes)
+ %   end,
     {ok, #state{}}.
 
 %% --------------------------------------------------------------------
@@ -73,7 +70,6 @@ init([]) ->
 %%          {stop, Reason, Reply, State}   | (terminate/2 is called)
 %%          {stop, Reason, State}            (terminate/2 is called)
 %% --------------------------------------------------------------------
-
 
 handle_call({stop}, _From, State) ->
     {stop, normal, shutdown_ok, State};
@@ -124,35 +120,90 @@ code_change(_OldVsn, State, _Extra) ->
 %% --------------------------------------------------------------------
 %%% Exported functions
 %% --------------------------------------------------------------------
-ensure_contact()->
-    DefaultNodes=['c0@c0','c2@c2','joq62-X550CA@joq62-X550CA','test@joq62-X550CA'],
-    DefaultNodes.    
+
 
 %% --------------------------------------------------------------------
 %%% Internal functions
 %% --------------------------------------------------------------------
-add_resource(Type,Resource,ResourceTuples)->
-    case dict:find(Type,ResourceTuples) of
-	{ok,ResourceList}->
-	    NewList=[Resource|lists:delete(Resource,ResourceList)],
-	    dict:store(Type,NewList,ResourceTuples);
-	error ->
-	    dict:store(Type,[Resource],ResourceTuples)
-    end.
 
-add_resources([{Type,Resource}|T],ResourceTuples)->
-    add_resources(T,add_resource(Type,Resource,ResourceTuples));
-add_resources([],ResourceTuples) ->
-    ResourceTuples.
+connect_nodes()->
+    AppFile=atom_to_list(dbase_dist)++".app",
+    Env=appfile:read(AppFile,env),
+    {nodes,DbaseNodes}=lists:keyfind(nodes,1,Env),
+    RunningNodes= [Node||Node<-DbaseNodes,
+			 pong=:=net_adm:ping(Node),
+			 Node/=node(),
+			 yes=:=rpc:call(Node,mnesia,system_info,[is_running],1000)
+	  ],
+    
+    RunningNodes.
 
-resources_for_types(Types,ResourceTuples)->
-    Fun =
-	fun(Type,Acc) ->
-		case dict:find(Type,ResourceTuples) of
-		    {ok,List}->
-			[{Type,Instance}||Instance <- List] ++Acc;
-		    error ->
-			Acc
-		end
-	end,
-    lists:foldl(Fun,[],Types).
+
+start_dbase(stop)->
+    ok=io:format("stop ~p~n",[{?FUNCTION_NAME,?MODULE,?LINE}]),
+    ok;
+start_dbase([])->
+    mnesia:stop(),
+    mnesia:delete_schema([node()]),
+    mnesia:start(),
+    %% First to start
+    ok=db_lock:create_table(),
+    {atomic,ok}=db_lock:create(lock1,0,node1),
+    ok=io:format("[] ~p~n",[{node(),?FUNCTION_NAME,?MODULE,?LINE}]),
+    ok;
+
+start_dbase([Node|T])->
+    ok=io:format("Node and node()~p~n",[{Node,node(),?FUNCTION_NAME,?MODULE,?LINE}]),
+    mnesia:stop(),
+    mnesia:delete_schema([node()]),
+    mnesia:start(),
+    MyNode=node(),
+    NewT=case rpc:call(Node,db_lock,add_node,[MyNode,MyNode,ram_copies],1000) of
+	     ok->
+		 stop;
+	     Error ->
+		 io:format("Error~p~n",[{Error,Node,node(),?FUNCTION_NAME,?MODULE,?LINE}]),
+		   T
+	   end,
+    start_dbase(NewT).
+
+    
+start_bully_election()->
+    application:stop(bully),
+    application:start(bully),
+    timer:sleep(5000),
+    bully:am_i_leader(node()).
+
+start_as_slave(DbaseNodes)->
+  %  mnesia:stop(),
+  %  mnesia:delete_schema([node()]),
+  %  mnesia:start(),
+  %  start_as_leader(DbaseNodes),
+    ok.
+    
+start_as_leader([])-> %First leader
+%    mnesia:stop(),
+%    mnesia:delete_schema([node()]),
+%    mnesia:start(),
+    
+    ok;
+
+start_as_leader(DbaseNodes)->
+ %   mnesia:stop(),
+ %   mnesia:delete_schema([node()]),
+ %   mnesia:start(),
+    
+  %  [add_node(Node,ram_copies)||Node<-DbaseNodes].
+    ok.
+    
+
+add_node(Node,StorageType)->
+    Result=case mnesia:change_config(extra_db_nodes, [Node]) of
+	       {ok,[Node]}->
+		   mnesia:add_table_copy(schema, node(),StorageType),
+		   Tables=mnesia:system_info(tables),
+		   mnesia:wait_for_tables(Tables,20*1000);
+	       Reason ->
+		   Reason
+	   end,
+    Result.

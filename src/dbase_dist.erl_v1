@@ -48,6 +48,15 @@ boot()->
 %%          {error, Reason}
 %% --------------------------------------------------------------------
 start(_Type, _StartArgs) ->
+    
+    case is_first_node() of
+	true->
+	    ok;
+	false->
+	    ok
+    end,
+    
+    ok=init(),
     {ok,Pid}= dbase_dist_sup:start_link(),
     {ok,Pid}.
    
@@ -61,3 +70,61 @@ stop(_State) ->
 %% ====================================================================
 %% Internal functions
 %% ====================================================================
+is_first_node()->
+    AppFile=atom_to_list(?MODULE)++".app",
+    Env=appfile:read(AppFile,env),
+    {dbase_nodes,DbaseNodes}=lists:keyfind(dbase_nodes,1,Env),
+    RunningNodes= [Node||Node<-DbaseNodes,pong=:=net_adm:ping(Node)],
+    Boolean=case RunningNodes of
+		[]->
+		    true;
+		 ->
+		    
+    % Check running nodes
+    
+    % Check if mnesia running and lock is installed
+DbaseNodes,
+    ok.
+
+init()->
+    io:format("node() ~p~n",[node()]),
+    mnesia:stop(),
+    mnesia:delete_schema([node()]),
+    mnesia:start(),
+    ConnectNodes=['dbase_dist@c0','dbase_dist@c2'],
+    ConnectedNodes=[ConnectNode||ConnectNode<-ConnectNodes,
+		pong=:=net_adm:ping(ConnectNode)],
+%    Nodes=nodes(),
+    DbaseNodes=[Node||Node<-ConnectedNodes,
+		      rpc:call(Node,db_lock,check_init,[],2000)=:=ok,
+		      Node/=node()] ,
+    io:format("nodes ~p~n",[nodes()]),
+    io:format("DbaseNodes ~p~n",[DbaseNodes]),
+    ok=case DbaseNodes of
+	   []-> % First Node
+	       ok=db_lock:create_table(),
+	       {atomic,ok}=db_lock:create(controller_lock,1,node()),
+	       true=db_lock:is_open(controller_lock,node(),2),
+	       true=db_lock:is_leader(controller_lock,node()),
+	       ok;
+	   DbaseNodes->
+	       add_this_node(DbaseNodes,false)
+       end.
+    
+	    
+
+add_this_node([],Result)->
+    Result;
+add_this_node(_,ok) ->
+    ok;
+add_this_node([Node1|T],_Acc)->
+    NewAcc=case rpc:call(Node1,db_lock,add_node,[node(),ram_copies],5000) of
+	       {badrpc,Reason}->
+		   {error,[badrpc,Reason,?FUNCTION_NAME,?MODULE,?LINE]};
+	       ok->
+		   ok;
+	       Error->
+		   {error,[Error,?FUNCTION_NAME,?MODULE,?LINE]}
+	   end,
+    
+add_this_node(T,NewAcc).	    

@@ -4,6 +4,9 @@ all:
 	rm -rf src/*.beam *.beam  test_src/*.beam test_ebin;
 	rm -rf  *~ */*~  erl_cra*;
 	rm -rf *_specs *_config *.log;
+#	bully
+	cp ../bully_election/src/*.app ebin;
+	erlc -o ebin ../bully_election/src/*.erl;
 #	app
 	cp src/*.app ebin;
 	erlc -o ebin src/*.erl;
@@ -12,6 +15,9 @@ unit_test:
 	rm -rf ebin/* src/*.beam *.beam test_src/*.beam test_ebin;
 	rm -rf  *~ */*~  erl_cra*;
 	mkdir test_ebin;
+#	bully
+	cp ../bully_election/src/*.app;
+	erlc -o ebin ../bully_election/src/*.erl;
 #	app
 	cp src/*.app ebin;
 	erlc -o ebin src/*.erl;
