@@ -30,6 +30,8 @@ check_init()->
 create_table()->
     mnesia:create_table(?TABLE, [{attributes, record_info(fields, ?RECORD)}]),
     mnesia:wait_for_tables([?TABLE], 20000).
+delete_table_copy(Dest)->
+    mnesia:del_table_copy(?TABLE,Dest).
 
 create(LockId,Time,Leader) ->
     F = fun() ->
@@ -52,13 +54,17 @@ add_table(StorageType)->
     mnesia:wait_for_tables(Tables,20*1000).
 
 add_node(Dest,Source,StorageType)->
+    mnesia:del_table_copy(schema,Dest),
+    mnesia:del_table_copy(?TABLE,Dest),
     io:format("Node~p~n",[{Dest,Source,?FUNCTION_NAME,?MODULE,?LINE}]),
     Result=case mnesia:change_config(extra_db_nodes, [Dest]) of
-	       {ok,[Node]}->
+	       {ok,[Dest]}->
+		 %  io:format("add_table_copy(schema) ~p~n",[{Dest,Source, mnesia:add_table_copy(schema,Source,StorageType),?FUNCTION_NAME,?MODULE,?LINE}]),
 		   mnesia:add_table_copy(schema,Source,StorageType),
+		%   io:format("add_table_copy(table) ~p~n",[{Dest,Source, mnesia:add_table_copy(?TABLE,Dest,StorageType),?FUNCTION_NAME,?MODULE,?LINE}]),
 		   mnesia:add_table_copy(?TABLE, Source, StorageType),
 		   Tables=mnesia:system_info(tables),
-		   io:format("Tables~p~n",[{Tables,Node,node(),?FUNCTION_NAME,?MODULE,?LINE}]),
+		%   io:format("Tables~p~n",[{Tables,Dest,node(),?FUNCTION_NAME,?MODULE,?LINE}]),
 		   mnesia:wait_for_tables(Tables,20*1000),
 		   ok;
 	       Reason ->
@@ -157,7 +163,7 @@ is_open(Object,Node,LockTimeOut)->
 	   end,
     IsOpen.
 		      
-	      
+
 delete(Object) ->
 
     F = fun() -> 

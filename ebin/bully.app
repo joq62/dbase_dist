@@ -1,7 +1,7 @@
 %% This is the application resource file (.app file) for the 'base'
 %% application.
 {application, bully,
-[{description, "Mnesia based distributed dbase" },
+[{description, "Leader election using Bully algorithm" },
 {vsn, "0.1.0" },
 {modules, 
 	  [bully,bully_sup,bully_server]},

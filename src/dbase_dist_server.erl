@@ -49,15 +49,10 @@ stop()-> gen_server:call(?MODULE, {stop},infinity).
 %%          {stop, Reason}
 %% --------------------------------------------------------------------
 init([]) ->
-    DbaseNodes=connect_nodes(),
-    start_dbase(DbaseNodes),
-  %  IsLeader=start_bully_election(),
-  %  case IsLeader of
-%	false->
-	 %   start_as_slave(DbaseNodes);
-%	true->
-%	    start_as_leader(DbaseNodes)
- %   end,
+    mnesia:stop(),
+    mnesia:del_table_copy(schema,node()),
+    mnesia:delete_schema([node()]),
+    mnesia:start(),  
     {ok, #state{}}.
 
 %% --------------------------------------------------------------------
@@ -127,9 +122,7 @@ code_change(_OldVsn, State, _Extra) ->
 %% --------------------------------------------------------------------
 
 connect_nodes()->
-    AppFile=atom_to_list(dbase_dist)++".app",
-    Env=appfile:read(AppFile,env),
-    {nodes,DbaseNodes}=lists:keyfind(nodes,1,Env),
+    {ok,DbaseNodes}=application:get_env(nodes),
     RunningNodes= [Node||Node<-DbaseNodes,
 			 pong=:=net_adm:ping(Node),
 			 Node/=node(),
@@ -144,6 +137,7 @@ start_dbase(stop)->
     ok;
 start_dbase([])->
     mnesia:stop(),
+    mnesia:del_table_copy(schema,node()),
     mnesia:delete_schema([node()]),
     mnesia:start(),
     %% First to start
@@ -155,6 +149,8 @@ start_dbase([])->
 start_dbase([Node|T])->
     ok=io:format("Node and node()~p~n",[{Node,node(),?FUNCTION_NAME,?MODULE,?LINE}]),
     mnesia:stop(),
+    mnesia:del_table_copy(schema,node()),
+    db_lock:delete_table_copy(node()),
     mnesia:delete_schema([node()]),
     mnesia:start(),
     MyNode=node(),

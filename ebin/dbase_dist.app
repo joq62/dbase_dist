@@ -10,5 +10,5 @@
 {mod, {dbase_dist,[]}},
 {start_phases, []},
 {git_path,"https://github.com/joq62/dbase_dist.git"},
-{env,[{nodes,['dbase_dist@joq62-X550CA','dbase_dist@c0','dbase_dist@c2']}]}
+{env,[]}
 ]}.
